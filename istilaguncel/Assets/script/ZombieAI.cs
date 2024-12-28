@@ -1,51 +1,102 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine;
-using UnityEngine.AI;
+using UnityEngine.AI;  // NavMeshAgent için gerekli
 
 public class ZombieAI : MonoBehaviour
 {
-    public Transform player; // Oyuncunun Transform bileşeni
-    public float viewDistance = 10f; // Görüş mesafesi
-    public float attackDistance = 2f; // Saldırı mesafesi
-    private NavMeshAgent agent;
-    private Animator animator; // Animasyon kontrolü
+    public int health = 50; // Zombinin başlangıç sağlığı
+    public int damage = 10; // Zombinin vereceği hasar
+    public float attackRange = 2f; // Saldırı mesafesi
+    public float attackRate = 1f; // Saldırı hızı
+    private float nextAttackTime = 0f; // Bir sonraki saldırı zamanı
+
+    private Transform player; // Oyuncu Transformu
+    private PlayerHealth playerHealth; // Oyuncunun sağlık sistemi
+
+    private NavMeshAgent navMeshAgent; // NavMeshAgent bileşeni
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>(); // Animator bileşeni
+        // Oyuncu nesnesini bul
+        player = GameObject.FindGameObjectWithTag("Player").transform; 
+        // Oyuncunun sağlık sistemini al
+        playerHealth = player.GetComponent<PlayerHealth>(); 
+        // NavMeshAgent bileşenini al
+        navMeshAgent = GetComponent<NavMeshAgent>(); 
+
+        // NavMeshAgent ayarlarını yapalım
+        if (navMeshAgent != null)
+        {
+            navMeshAgent.speed = 3.5f; // Zombinin hareket hızı
+            navMeshAgent.angularSpeed = 120f; // Yön değiştirme hızı
+            navMeshAgent.acceleration = 8f; // Hızlanma değeri
+        }
+        else
+        {
+            Debug.LogError("NavMeshAgent bileşeni bulunamadı!");
+        }
     }
 
     void Update()
     {
-        if (player != null)
+        // Zombi ile oyuncu arasındaki mesafeyi hesapla
+        float distance = Vector3.Distance(transform.position, player.position);
+
+        // Eğer zombi oyuncuya yakınsa
+        if (distance <= attackRange)
         {
-            float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-
-            // Oyuncuya yaklaşma
-            if (distanceToPlayer <= viewDistance)
+            if (Time.time >= nextAttackTime)
             {
-                agent.SetDestination(player.position); // Zombiyi oyuncuya yönlendir
-
-                if (distanceToPlayer <= attackDistance)
-                {
-                    // Saldırı animasyonu veya başka bir davranış başlatılabilir
-                    animator.SetTrigger("Attack");
-                }
-                else
-                {
-                    // Koşma animasyonu (veya yürüme)
-                    animator.SetBool("IsRunning", true);
-                }
-            }
-            else
-            {
-                // Görüş mesafesinin dışındaysa hareket etmeyi durdur
-                agent.SetDestination(transform.position);
-                animator.SetBool("IsRunning", false); // Duraklama animasyonu
+                AttackPlayer(); // Oyuncuya saldır
+                nextAttackTime = Time.time + 1f / attackRate; // Saldırı hızını ayarla
             }
         }
+        else
+        {
+            // Oyuncuya yaklaşmaya devam et
+            MoveTowardsPlayer();
+        }
+    }
+
+    // Oyuncuya saldırma fonksiyonu
+    private void AttackPlayer()
+    {
+        if (playerHealth != null)
+        {
+            playerHealth.TakeDamage(damage); // Oyuncuya hasar ver
+            Debug.Log("Zombi oyuncuya saldırdı! Hasar verdi: " + damage);
+        }
+    }
+
+    // Zombinin oyuncuya doğru hareket etmesi
+    private void MoveTowardsPlayer()
+    {
+        if (navMeshAgent != null)
+        {
+            navMeshAgent.SetDestination(player.position); // Hedef olarak oyuncu pozisyonunu belirle
+
+            // Zombiyi oyuncuya doğru döndür
+            Vector3 directionToPlayer = player.position - transform.position;
+            directionToPlayer.y = 0;  // Y eksenini sıfırlayarak sadece yatayda yönlendirme yap
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(directionToPlayer), Time.deltaTime * 5f);
+        }
+    }
+
+    // Zombi hasar aldığında bu fonksiyon çağrılır
+    public void TakeDamage(int damage)
+    {
+        health -= damage; // Zombiye hasar ver
+        Debug.Log("Zombi hasar aldı, kalan sağlık: " + health);
+
+        if (health <= 0)
+        {
+            Die(); // Zombi öldüğünde ölüm fonksiyonunu çağır
+        }
+    }
+
+    // Zombi öldüğünde çağrılacak fonksiyon
+    private void Die()
+    {
+        Debug.Log("Zombi öldü");
+        Destroy(gameObject); // Zombiyi yok et
     }
 }

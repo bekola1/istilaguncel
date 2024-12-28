@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;  // NavMeshAgent için gerekli
 
 public class ZombieController : MonoBehaviour
 {
@@ -13,18 +14,32 @@ public class ZombieController : MonoBehaviour
     private Transform player; // Oyuncu Transformu
     private PlayerHealth playerHealth; // Oyuncunun sağlık sistemi
 
-    private void Start()
+    private NavMeshAgent navMeshAgent; // NavMeshAgent bileşeni
+
+    void Start()
     {
         player = GameObject.FindGameObjectWithTag("Player").transform; // Oyuncu nesnesini bul
         playerHealth = player.GetComponent<PlayerHealth>(); // Oyuncunun sağlık sistemini al
+        navMeshAgent = GetComponent<NavMeshAgent>(); // NavMeshAgent bileşenini al
+
+        // NavMeshAgent ayarlarını yapalım
+        if (navMeshAgent != null)
+        {
+            navMeshAgent.speed = 3.5f; // Zombinin hareket hızı
+            navMeshAgent.angularSpeed = 120f; // Yön değiştirme hızı
+            navMeshAgent.acceleration = 8f; // Hızlanma değeri
+        }
+        else
+        {
+            Debug.LogError("NavMeshAgent bileşeni bulunamadı!");
+        }
     }
 
-    private void Update()
+    void Update()
     {
         // Zombi ile oyuncu arasındaki mesafeyi hesapla
         float distance = Vector3.Distance(transform.position, player.position);
 
-        // Eğer zombi oyuncuya yaklaşıyorsa
         if (distance <= attackRange)
         {
             if (Time.time >= nextAttackTime)
@@ -32,6 +47,11 @@ public class ZombieController : MonoBehaviour
                 AttackPlayer(); // Oyuncuya saldır
                 nextAttackTime = Time.time + 1f / attackRate; // Saldırı hızını ayarla
             }
+        }
+        else
+        {
+            // Zombi oyuncuya yaklaşmaya devam et
+            MoveTowardsPlayer();
         }
     }
 
@@ -41,6 +61,17 @@ public class ZombieController : MonoBehaviour
         if (playerHealth != null)
         {
             playerHealth.TakeDamage(damage); // Oyuncuya hasar ver
+            Debug.Log("Zombi oyuncuya saldırdı! Hasar verdi: " + damage);
+        }
+    }
+
+    // Zombinin oyuncuya doğru hareket etmesi
+    private void MoveTowardsPlayer()
+    {
+        if (navMeshAgent != null)
+        {
+            navMeshAgent.SetDestination(player.position); // Hedef olarak oyuncu pozisyonunu belirle
+            transform.LookAt(player); // Zombiyi oyuncuya doğru döndür
         }
     }
 

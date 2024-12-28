@@ -16,22 +16,23 @@ public class PlayerHealth : MonoBehaviour
     // Sağlık alma fonksiyonu
     public void TakeDamage(int damage)
     {
-        currentHealth -= damage; // Hasar alındığında sağlık azaltılır
+        currentHealth -= damage; // Hasar alındığında sağlık azalır
 
         if (currentHealth < 0)
         {
             currentHealth = 0; // Sağlık negatif olmasın
         }
 
-        // Sağlık UI'sini güncelleme (isteğe bağlı)
-        UpdateHealthUI();
+        // Sağlık değiştiğinde herhangi bir işlem yapabilirsiniz
+        // Örneğin UI güncellemesi burada yapılabilir.
+        Debug.Log("Health: " + currentHealth);
     }
 
-    // Sağlık metnini güncelleme fonksiyonu (UI ile ilgili)
-    void UpdateHealthUI()
+    // Oyuncu ölürse çağrılacak fonksiyon
+    public void Die()
     {
-        // Burada sağlık UI'sini güncellemeyi sağlayabilirsiniz.
-        // Örneğin, bir TextMeshPro veya UI Slider kullanabilirsiniz.
-        Debug.Log("Health: " + currentHealth);
+        Debug.Log("Player has died!");
+        // Oyuncu öldüğünde yapılacak işlemleri buraya ekleyebilirsiniz (Örneğin, game over ekranı).
+        Destroy(gameObject); // Oyuncu nesnesini yok et
     }
 }

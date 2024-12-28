@@ -2,113 +2,122 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[RequireComponent(typeof(CharacterController))] // Karakter controller'ının mevcut olduğundan emin ol
 public class PlayerController : MonoBehaviour
 {
-    // Hareket ve zıplama
-    public float moveSpeed = 5f;
+    public float moveSpeed = 5f; // Yürüyüş hızı
     public float sprintSpeed = 10f; // Koşma hızı
-    public float jumpForce = 5f;
-    public float crouchHeight = 0.5f;
-
-    // Zoom
-    public float zoomFieldOfView = 30f;
-    public float normalFieldOfView = 60f;
-    public float zoomSpeed = 10f;
-
-    // Mouse hareketi
-    public float mouseSensitivity = 300f; // Artırılmış hassasiyet
-
-    private Rigidbody rb;
-    private Camera playerCamera;
-    private Vector3 originalScale;
-    private bool isGrounded;
-    private float xRotation = 0f;
+    public float jumpHeight = 2f; // Zıplama yüksekliği
+    public float mouseSensitivity = 2f; // Mouse hassasiyeti
+    public float fieldOfViewSpeed = 10f; // FOV değişim hızı
+    public Camera playerCamera; // Oyuncunun kamerası
+    public GameObject gun; // Silah objesi
+    private CharacterController characterController; // Karakterin fiziksel kontrolleri
+    private Vector3 moveDirection; // Hareket yönü
+    private float currentSpeed; // Şu anki hız
+    private float defaultFOV; // Varsayılan FOV
+    private float zoomedFOV = 30f; // Zoom yapıldığında uygulanacak FOV
+    private float rotationX = 0f; // X ekseninde döndürme (yukarı ve aşağı)
+    private bool isZooming = false; // Zoom yapılıp yapılmadığını kontrol et
 
     void Start()
     {
-        rb = GetComponent<Rigidbody>();
-        playerCamera = GetComponentInChildren<Camera>();
-        originalScale = transform.localScale;
+        characterController = GetComponent<CharacterController>(); // Karakter controller'ını al
+        playerCamera = transform.GetChild(0).GetComponent<Camera>(); // Player objesinin altındaki ilk çocuğu (kamera) al
+        defaultFOV = playerCamera.fieldOfView; // Varsayılan FOV'yu al
+        currentSpeed = moveSpeed; // Başlangıçta normal hızda ilerle
+        gun = transform.GetChild(1).gameObject; // Silahı almak için, silah karakterin altındaki 2. objeyi alıyoruz
 
-        // Mouse'u kilitle
-        Cursor.lockState = CursorLockMode.Locked;
+        // Mouse imlecini gizle ve kilitle
+        Cursor.lockState = CursorLockMode.Locked;  // İmleci kilitle
+        Cursor.visible = false;  // İmleci gizle
     }
 
     void Update()
     {
-        Move();
-        Jump();
-        Crouch();
-        Zoom();
-        LookAround();
-    }
+        // Mouse hareketi ile yatay ve dikey kamerayı döndürme
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
-    void Move()
-    {
-        float moveX = Input.GetAxis("Horizontal"); // A, D veya sağ-sol yön tuşları
-        float moveZ = Input.GetAxis("Vertical");   // W, S veya ileri-geri yön tuşları
+        rotationX -= mouseY;
+        rotationX = Mathf.Clamp(rotationX, -90f, 90f); // Y eksenindeki döndürmeyi sınırlayarak kamerayı yukarı aşağı hareket ettir
 
-        bool isSprinting = Input.GetKey(KeyCode.LeftShift); // Sol Shift tuşuyla koşma
-        float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
+        playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0f, 0f); // Kamerayı yukarı-aşağı döndür
+        transform.Rotate(Vector3.up * mouseX); // Yalnızca oyuncuyu sağa-sola döndür
 
-        Vector3 move = transform.right * moveX + transform.forward * moveZ;
-        transform.Translate(move * currentSpeed * Time.deltaTime, Space.World);
-    }
-
-    void Jump()
-    {
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        // Koşma tuşuna basıldığında hızı artır
+        if (Input.GetKey(KeyCode.LeftShift))
         {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-        }
-    }
-
-    void Crouch()
-    {
-        if (Input.GetKey(KeyCode.LeftControl)) // Ctrl tuşu
-        {
-            transform.localScale = new Vector3(originalScale.x, crouchHeight, originalScale.z);
+            currentSpeed = sprintSpeed; // Koşma hızı
         }
         else
         {
-            transform.localScale = originalScale;
+            currentSpeed = moveSpeed; // Normal hız
         }
-    }
 
-    void Zoom()
-    {
-        if (Input.GetMouseButton(1)) // Sağ mouse tuşu
+        // Yatay ve dikey hareket
+        float moveDirectionY = moveDirection.y;
+        float moveDirectionX = Input.GetAxis("Horizontal") * currentSpeed; // A ve D tuşları
+        float moveDirectionZ = Input.GetAxis("Vertical") * currentSpeed; // W ve S tuşları
+
+        // Hareket yönü (yerçekimi de dahil)
+        moveDirection = new Vector3(moveDirectionX, moveDirectionY, moveDirectionZ);
+        moveDirection = transform.TransformDirection(moveDirection);
+
+        // Zıplama işlevi
+        if (characterController.isGrounded)
         {
-            playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, zoomFieldOfView, Time.deltaTime * zoomSpeed);
+            if (Input.GetButtonDown("Jump"))
+            {
+                moveDirection.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y); // Zıplama hesaplaması
+            }
         }
         else
         {
-            playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, normalFieldOfView, Time.deltaTime * zoomSpeed);
+            moveDirection.y += Physics.gravity.y * Time.deltaTime; // Yerçekimi etkisi
+        }
+
+        characterController.Move(moveDirection * Time.deltaTime); // Hareketi uygula
+
+        // FOV değişimi (koşarken)
+        float targetFOV = Input.GetKey(KeyCode.LeftShift) ? defaultFOV + 20f : defaultFOV;
+        playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFOV, fieldOfViewSpeed * Time.deltaTime);
+
+        // Sağ tıklama ile zoom yapma
+        if (Input.GetMouseButton(1)) // Sağ tık
+        {
+            isZooming = true;
+        }
+        else
+        {
+            isZooming = false;
+        }
+
+        // Zoom yapılırken FOV değerini değiştir
+        float targetZoomFOV = isZooming ? zoomedFOV : defaultFOV;
+        playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetZoomFOV, 10f * Time.deltaTime); // 10f hızla zoom yap
+
+        // Silah Ateş Etme (Mouse sol tuşu ile)
+        if (Input.GetMouseButton(0)) // Sol tıklama
+        {
+            Shoot();
         }
     }
 
-    void LookAround()
+    void Shoot()
     {
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        // Silah ateşleme işlevi burada olacak.
+        // Bu kısımda, kameranın yönüne göre bir raycast gönderebiliriz.
+        
+        Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition); // Kameradan farenin tıklama noktasına bir ray oluştur
+        RaycastHit hit;
 
-        // Kamera yukarı/aşağı hareketi (X ekseninde döner)
-        xRotation -= mouseY;
-        xRotation = Mathf.Clamp(xRotation, -90f, 90f); // Baş yukarı/aşağı dönerken sınır koy
-
-        playerCamera.transform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-
-        // Karakter sağ/sol dönüşü (Y ekseninde döner)
-        transform.Rotate(Vector3.up * mouseX);
-    }
-
-    private void OnCollisionStay(Collision collision)
-    {
-        isGrounded = true; // Karakter yerde
-    }
-
-    private void OnCollisionExit(Collision collision)
-    {
-        isGrounded = false; // Karakter havada
+        if (Physics.Raycast(ray, out hit)) // Ray, bir nesneye çarptıysa
+        {
+            if (hit.collider.CompareTag("Zombie")) // Eğer çarpan nesne zombi ise
+            {
+                hit.collider.GetComponent<ZombieHealth>().TakeDamage(10); // Zombi hasar alacak
+            }
+        }
     }
 }
