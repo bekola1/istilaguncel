@@ -1,28 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class Bullet : MonoBehaviour
 {
-    public int damage = 10;  // Merminin hasarı
+    public int damage = 10;  // Mermi hasarı düşürüldü
 
     void OnCollisionEnter(Collision collision)
     {
-        // Eğer mermi hâlâ var ve çarpışma gerçekleştiyse
-        if (gameObject != null)
+        if (collision.gameObject.CompareTag("Zombie"))  // Zombi ile çarpışma
         {
-            // Çarpışma nesnesine hasar uygulama
-            if (collision.gameObject.CompareTag("Zombie"))
+            ZombieHealth zombieHealth = collision.gameObject.GetComponent<ZombieHealth>();
+            if (zombieHealth != null)
             {
-                ZombieHealth zombieHealth = collision.gameObject.GetComponent<ZombieHealth>();
-                if (zombieHealth != null)
-                {
-                    zombieHealth.TakeDamage(damage); // Zombi hasar alır
-                }
+                zombieHealth.TakeDamage(damage);  // Zombi hasar alır
             }
-
-            // Mermiyi yok et
-            Destroy(gameObject);
         }
+
+        Destroy(gameObject);  // Mermiyi yok et
     }
 }

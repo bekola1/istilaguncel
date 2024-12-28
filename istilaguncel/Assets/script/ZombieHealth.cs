@@ -1,10 +1,8 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ZombieHealth : MonoBehaviour
 {
-    public int maxHealth = 100;
+    public int maxHealth = 500;  // Sağlık değeri artırıldı
     private int currentHealth;
 
     void Start()
@@ -12,20 +10,36 @@ public class ZombieHealth : MonoBehaviour
         currentHealth = maxHealth;
     }
 
+    // Zombi hasar alır
     public void TakeDamage(int damage)
     {
-        currentHealth -= damage;
+        currentHealth -= damage;  // Hasar alındığında sağlık azalır
+        Debug.Log("Zombi hasar aldı, mevcut sağlık: " + currentHealth);
 
         if (currentHealth <= 0)
         {
-            Die();
+            Die();  // Sağlık sıfıra eşitse ölür
         }
     }
 
+    // Zombi öldü
     void Die()
     {
-        // Zombi öldü
-        Debug.Log("Zombie has died!");
-        Destroy(gameObject); // Zombiyi yok et
+        Debug.Log("Zombi öldü!");
+        Destroy(gameObject);  // Zombiyi yok et
+    }
+
+    // Çarpışmayı algıla
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Bullet"))  // Mermilerle çarpıştığında
+        {
+            Bullet bullet = collision.gameObject.GetComponent<Bullet>();
+            if (bullet != null)
+            {
+                TakeDamage(bullet.damage);  // Mermi hasarını al
+                Destroy(collision.gameObject);  // Mermiyi yok et
+            }
+        }
     }
 }
