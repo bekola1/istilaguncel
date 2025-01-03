@@ -10,80 +10,101 @@ public class PlayerController : MonoBehaviour
     public float jumpHeight = 2f; // Zıplama yüksekliği
     public float mouseSensitivity = 2f; // Mouse hassasiyeti
     public float fieldOfViewSpeed = 10f; // FOV değişim hızı
-    public Camera playerCamera; // Oyuncunun kamerası
-    public GameObject gun; // Silah objesi
-    private CharacterController characterController; // Karakterin fiziksel kontrolleri
-    private Vector3 moveDirection; // Hareket yönü
-    private float currentSpeed; // Şu anki hız
+    public float zoomedFOV = 30f; // Zoom yapıldığında uygulanacak FOV
     private float defaultFOV; // Varsayılan FOV
-    private float zoomedFOV = 30f; // Zoom yapıldığında uygulanacak FOV
     private float rotationX = 0f; // X ekseninde döndürme (yukarı ve aşağı)
     private bool isZooming = false; // Zoom yapılıp yapılmadığını kontrol et
 
+    public Camera playerCamera; // Oyuncunun kamerası
+    public GameObject gun; // Silah objesi
+
+    private CharacterController characterController; // Karakterin fiziksel kontrolleri
+    private Vector3 moveDirection; // Hareket yönü
+    private float currentSpeed; // Şu anki hız
+
     void Start()
     {
-        characterController = GetComponent<CharacterController>(); // Karakter controller'ını al
-        playerCamera = transform.GetChild(0).GetComponent<Camera>(); // Player objesinin altındaki ilk çocuğu (kamera) al
-        defaultFOV = playerCamera.fieldOfView; // Varsayılan FOV'yu al
-        currentSpeed = moveSpeed; // Başlangıçta normal hızda ilerle
-        gun = transform.GetChild(1).gameObject; // Silahı almak için, silah karakterin altındaki 2. objeyi alıyoruz
+        // CharacterController bileşenini al
+        characterController = GetComponent<CharacterController>();
+
+        // Kamera bileşenini dinamik olarak bul
+        playerCamera = GetComponentInChildren<Camera>();
+        if (playerCamera == null)
+        {
+            Debug.LogError("Player camera not found! Ensure a Camera exists as a child of the Player object.");
+        }
+
+        // Silahı bulmaya çalış
+        if (playerCamera != null)
+        {
+            gun = playerCamera.transform.Find("Gun")?.gameObject;
+            if (gun == null)
+            {
+                Debug.LogError("Gun object not found! Ensure the Gun is a child of the Camera and named 'Gun'.");
+            }
+        }
+
+        // Varsayılan ayarları yap
+        defaultFOV = playerCamera != null ? playerCamera.fieldOfView : 60f;
+        currentSpeed = moveSpeed;
 
         // Mouse imlecini gizle ve kilitle
-        Cursor.lockState = CursorLockMode.Locked;  // İmleci kilitle
-        Cursor.visible = false;  // İmleci gizle
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void Update()
     {
-        // Mouse hareketi ile yatay ve dikey kamerayı döndürme
+        HandleMouseLook();
+        HandleMovement();
+        HandleZoom();
+        HandleShooting();
+    }
+
+    void HandleMouseLook()
+    {
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
         rotationX -= mouseY;
-        rotationX = Mathf.Clamp(rotationX, -90f, 90f); // Y eksenindeki döndürmeyi sınırlayarak kamerayı yukarı aşağı hareket ettir
+        rotationX = Mathf.Clamp(rotationX, -90f, 90f);
 
-        playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0f, 0f); // Kamerayı yukarı-aşağı döndür
-        transform.Rotate(Vector3.up * mouseX); // Yalnızca oyuncuyu sağa-sola döndür
-
-        // Koşma tuşuna basıldığında hızı artır
-        if (Input.GetKey(KeyCode.LeftShift))
+        if (playerCamera != null)
         {
-            currentSpeed = sprintSpeed; // Koşma hızı
-        }
-        else
-        {
-            currentSpeed = moveSpeed; // Normal hız
+            playerCamera.transform.localRotation = Quaternion.Euler(rotationX, 0f, 0f);
         }
 
-        // Yatay ve dikey hareket
+        transform.Rotate(Vector3.up * mouseX);
+    }
+
+    void HandleMovement()
+    {
         float moveDirectionY = moveDirection.y;
-        float moveDirectionX = Input.GetAxis("Horizontal") * currentSpeed; // A ve D tuşları
-        float moveDirectionZ = Input.GetAxis("Vertical") * currentSpeed; // W ve S tuşları
+        float moveDirectionX = Input.GetAxis("Horizontal") * currentSpeed;
+        float moveDirectionZ = Input.GetAxis("Vertical") * currentSpeed;
 
-        // Hareket yönü (yerçekimi de dahil)
         moveDirection = new Vector3(moveDirectionX, moveDirectionY, moveDirectionZ);
         moveDirection = transform.TransformDirection(moveDirection);
 
-        // Zıplama işlevi
         if (characterController.isGrounded)
         {
             if (Input.GetButtonDown("Jump"))
             {
-                moveDirection.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y); // Zıplama hesaplaması
+                moveDirection.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y);
             }
         }
         else
         {
-            moveDirection.y += Physics.gravity.y * Time.deltaTime; // Yerçekimi etkisi
+            moveDirection.y += Physics.gravity.y * Time.deltaTime;
         }
 
-        characterController.Move(moveDirection * Time.deltaTime); // Hareketi uygula
+        characterController.Move(moveDirection * Time.deltaTime);
 
-        // FOV değişimi (koşarken)
-        float targetFOV = Input.GetKey(KeyCode.LeftShift) ? defaultFOV + 20f : defaultFOV;
-        playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFOV, fieldOfViewSpeed * Time.deltaTime);
+        currentSpeed = Input.GetKey(KeyCode.LeftShift) ? sprintSpeed : moveSpeed;
+    }
 
-        // Sağ tıklama ile zoom yapma
+    void HandleZoom()
+    {
         if (Input.GetMouseButton(1)) // Sağ tık
         {
             isZooming = true;
@@ -93,11 +114,15 @@ public class PlayerController : MonoBehaviour
             isZooming = false;
         }
 
-        // Zoom yapılırken FOV değerini değiştir
-        float targetZoomFOV = isZooming ? zoomedFOV : defaultFOV;
-        playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetZoomFOV, 10f * Time.deltaTime); // 10f hızla zoom yap
+        float targetFOV = isZooming ? zoomedFOV : defaultFOV;
+        if (playerCamera != null)
+        {
+            playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFOV, fieldOfViewSpeed * Time.deltaTime);
+        }
+    }
 
-        // Silah Ateş Etme (Mouse sol tuşu ile)
+    void HandleShooting()
+    {
         if (Input.GetMouseButton(0)) // Sol tıklama
         {
             Shoot();
@@ -106,17 +131,24 @@ public class PlayerController : MonoBehaviour
 
     void Shoot()
     {
-        // Silah ateşleme işlevi burada olacak.
-        // Bu kısımda, kameranın yönüne göre bir raycast gönderebiliriz.
-        
-        Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition); // Kameradan farenin tıklama noktasına bir ray oluştur
+        if (gun == null || playerCamera == null)
+        {
+            Debug.LogWarning("Cannot shoot: Gun or Camera is not assigned.");
+            return;
+        }
+
+        Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit)) // Ray, bir nesneye çarptıysa
+        if (Physics.Raycast(ray, out hit))
         {
-            if (hit.collider.CompareTag("Zombie")) // Eğer çarpan nesne zombi ise
+            if (hit.collider.CompareTag("Zombie"))
             {
-                hit.collider.GetComponent<ZombieHealth>().TakeDamage(10); // Zombi hasar alacak
+                ZombieHealth zombieHealth = hit.collider.GetComponent<ZombieHealth>();
+                if (zombieHealth != null)
+                {
+                    zombieHealth.TakeDamage(10);
+                }
             }
         }
     }
